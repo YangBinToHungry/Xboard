@@ -21,7 +21,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 1 
+          fetch-depth: 1
+          submodules: recursive
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -53,7 +54,9 @@ jobs:
 
       - name: Get version
         id: get_version
-        run: echo "version=$(git describe --tags --always)" >> $GITHUB_OUTPUT
+        run: |
+          echo "version=$(git describe --tags --always)" >> $GITHUB_OUTPUT
+          echo "build_date=$(date -u +%Y%m%d)" >> $GITHUB_OUTPUT
 
       - name: Extract metadata
         id: meta
@@ -91,9 +94,8 @@ jobs:
           build-args: |
             BUILDKIT_INLINE_CACHE=1
             BUILDKIT_MULTI_PLATFORM=1
-            CACHEBUST=${{ github.sha }}
-            REPO_URL=https://github.com/${{ github.repository }}
-            BRANCH_NAME=${{ github.ref_name }}
+            BUILD_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.get_version.outputs.build_date }}
           provenance: false
           outputs: type=registry,push=true
           allow: |

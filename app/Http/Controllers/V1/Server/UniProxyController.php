@@ -47,7 +47,14 @@ class UniProxyController extends Controller
 
         $node = $this->getNodeInfo($request);
 
-        ServerService::processTraffic($node, $res);
+        if ($request->hasHeader('X-Traffic-Report-ID')) {
+            $reportId = (string) $request->header('X-Traffic-Report-ID');
+            app(\App\Services\TrafficReportService::class)->process($node, $reportId, $res);
+            return $this->success(true)->header('X-Traffic-Report-Ack', $reportId);
+        } else {
+            // Legacy clients retain their existing asynchronous reporting path.
+            ServerService::processTraffic($node, $res);
+        }
 
         return $this->success(true);
     }

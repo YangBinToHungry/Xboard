@@ -24,6 +24,10 @@ class UpdateService
      */
     public function getCurrentVersion(): string
     {
+        if ($build = $this->buildInfo()) {
+            return $build['date'] . '-' . substr($build['commit'], 0, 7);
+        }
+
         $date = Cache::get(self::CACHE_VERSION_DATE) ?? date('Ymd');
         $hash = Cache::rememberForever(self::CACHE_VERSION, function () {
             return $this->getCurrentCommit();
@@ -36,6 +40,13 @@ class UpdateService
      */
     public function updateVersionCache(): void
     {
+        $build = $this->buildInfo();
+        if ($build) {
+            Cache::forever(self::CACHE_VERSION_DATE, $build['date']);
+            Cache::forever(self::CACHE_VERSION, substr($build['commit'], 0, 7));
+            return;
+        }
+
         try {
             $result = Process::run('git log -1 --format=%cd:%H --date=format:%Y%m%d');
             if ($result->successful()) {
@@ -256,6 +267,7 @@ class UpdateService
 
     protected function getCurrentCommit(): string
     {
+        if ($build = $this->buildInfo()) { return substr($build['commit'], 0, 7); }
         try {
             // Ensure git configuration is correct
             Process::run(sprintf('git config --global --add safe.directory %s', base_path()));
@@ -455,4 +467,15 @@ class UpdateService
             return [];
         }
     }
+    private function buildInfo(): ?array
+    {
+        $path = base_path('build-info.json');
+        if (!is_file($path)) { return null; }
+        $data = json_decode(file_get_contents($path), true);
+        if (!is_array($data) || !preg_match('/^[a-f0-9]{40}$/', $data['commit'] ?? '') || !preg_match('/^[0-9]{8}$/', $data['date'] ?? '')) {
+            return null;
+        }
+        return $data;
+    }
+
 } 

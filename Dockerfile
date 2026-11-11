@@ -44,16 +44,12 @@ WORKDIR /www
 
 COPY .docker /
 
-ARG CACHEBUST=1
-ARG REPO_URL=https://github.com/cedar2025/Xboard
-ARG BRANCH_NAME=master
-
-RUN echo "Attempting to clone branch: ${BRANCH_NAME} from ${REPO_URL} with CACHEBUST: ${CACHEBUST}" && \
-    rm -rf ./* && \
-    rm -rf .git && \
-    git config --global --add safe.directory /www && \
-    git clone --depth 1 --branch ${BRANCH_NAME} ${REPO_URL} . && \
-    git submodule update --init --recursive --force
+ARG BUILD_COMMIT=unknown
+ARG BUILD_DATE=unknown
+COPY --chown=www:www . /www
+RUN test -f public/assets/admin/index.html && \
+    php -r 'file_put_contents("/www/build-info.json", json_encode(["commit" => getenv("BUILD_COMMIT"), "date" => getenv("BUILD_DATE")]));'
+LABEL org.opencontainers.image.revision=$BUILD_COMMIT
 
 COPY .docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY .docker/caddy/Caddyfile /etc/caddy/Caddyfile
@@ -61,6 +57,7 @@ COPY .docker/php/zz-xboard.ini /usr/local/etc/php/conf.d/zz-xboard.ini
 
 RUN composer install --no-cache --no-dev --no-security-blocking \
     && php artisan storage:link \
+    && mkdir -p /www/.docker/.data/redis /www/storage/logs /www/storage/theme /www/plugins \
     && chown -R www:www /www \
     && chmod -R 775 /www \
     && mkdir -p /data \

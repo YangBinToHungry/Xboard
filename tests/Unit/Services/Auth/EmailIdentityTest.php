@@ -237,7 +237,7 @@ class EmailIdentityTest extends TestCase
             'email' => $email,
             'password' => password_hash($password, PASSWORD_DEFAULT),
             'uuid' => Helper::guid(true),
-            'token' => Helper::guid(true),
+            'token' => Helper::guid(false),
             'created_at' => time(),
             'updated_at' => time(),
         ]);
