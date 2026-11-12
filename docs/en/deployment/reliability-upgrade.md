@@ -44,8 +44,13 @@ header retain the existing asynchronous queue behavior and do not gain
 request-level deduplication. A new node talking to an old panel remains
 compatible, but cannot gain deduplication until the panel is upgraded.
 
-Receipts retain only ids, payload hashes and creation times, not full traffic
-payloads. No automatic pruning is added: deleting receipts while nodes may
+Receipts retain ids, payload hashes, creation times and the post-filter user ids
+needed to retry excess-traffic checks, not full traffic payloads. The additional
+`check_user_ids` migration must also run when upgrading an earlier receipt-based
+installation. Excess-traffic notifications are published only after database
+commit. A Redis or status-cache failure prevents the ACK; an identical retry
+repeats notification and status updates without repeating accounting. Older
+receipts without saved user ids fall back to the original batch's user ids. No automatic pruning is added: deleting receipts while nodes may
 still retry old ids permits duplicate accounting. Plan ledger storage growth
 and establish a bounded retry/retention policy before introducing pruning.
 V2bX currently retains pending/queued traffic in memory; a process crash can

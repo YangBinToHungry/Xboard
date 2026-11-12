@@ -132,13 +132,17 @@ class ServerService
             return;
         }
 
-        $nodeType = strtoupper($node->type);
-        $nodeId = $node->id;
-
-        Cache::put(CacheKey::get("SERVER_{$nodeType}_ONLINE_USER", $nodeId), count($data), 3600);
-        Cache::put(CacheKey::get("SERVER_{$nodeType}_LAST_PUSH_AT", $nodeId), time(), 3600);
+        self::recordTrafficReport($node, count($data));
 
         (new UserService())->trafficFetch($node, $node->type, $data);
+    }
+
+    public static function recordTrafficReport(Server $node, int $userCount): void
+    {
+        $nodeType = strtoupper($node->type);
+        $nodeId = $node->id;
+        Cache::put(CacheKey::get("SERVER_{$nodeType}_ONLINE_USER", $nodeId), $userCount, 3600);
+        Cache::put(CacheKey::get("SERVER_{$nodeType}_LAST_PUSH_AT", $nodeId), time(), 3600);
     }
 
     /**

@@ -17,16 +17,18 @@ class TrafficFetchJob implements ShouldQueue
     protected $server;
     protected $protocol;
     protected $timestamp;
+    protected bool $notifyPendingCheck = true;
     public $tries = 1;
     public $timeout = 20;
 
-    public function __construct(array $server, array $data, $protocol, int $timestamp)
+    public function __construct(array $server, array $data, $protocol, int $timestamp, bool $notifyPendingCheck = true)
     {
         $this->onQueue('traffic_fetch');
         $this->server = $server;
         $this->data = $data;
         $this->protocol = $protocol;
         $this->timestamp = $timestamp;
+        $this->notifyPendingCheck = $notifyPendingCheck;
     }
 
     public function handle(): void
@@ -44,7 +46,7 @@ class TrafficFetchJob implements ShouldQueue
                 );
         }
 
-        if (!empty($userIds)) {
+        if ($this->notifyPendingCheck && !empty($userIds)) {
             Redis::sadd('traffic:pending_check', ...$userIds);
         }
     }

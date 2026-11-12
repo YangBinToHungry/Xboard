@@ -8,6 +8,7 @@ use App\Jobs\TrafficFetchJob;
 use App\Models\Server;
 use App\Services\Plugin\HookManager;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Redis;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
@@ -32,7 +33,7 @@ class TrafficReportService
         $server['rate'] = $node->getCurrentRate();
         $timestamp = strtotime(date('Y-m-d'));
 
-        return DB::transaction(function () use ($node, $reportId, $data, $hash, $server, $timestamp) {
+        [$processed, $userIds] = DB::transaction(function () use ($node, $reportId, $data, $hash, $server, $timestamp) {
             $inserted = DB::table('v2_traffic_report_receipt')->insertOrIgnore([
                 'server_id' => $node->id,
                 'report_id' => $reportId,
@@ -45,17 +46,36 @@ class TrafficReportService
                 if (!$receipt || !hash_equals($receipt->payload_hash, $hash)) {
                     throw new ConflictHttpException('Report id already belongs to a different payload.');
                 }
-                return false;
+                // Older receipts predate the saved post-filter user list.
+                $userIds = $receipt->check_user_ids === null
+                    ? array_keys($data)
+                    : json_decode($receipt->check_user_ids, true, 512, JSON_THROW_ON_ERROR);
+                return [false, $userIds];
             }
 
             // Run on this connection inside the receipt transaction, rather than
             // acknowledging a queue publish which could partially succeed.
             [$server, $protocol, $data] = HookManager::filter('traffic.process.before', [$server, $node->type, $data]);
             [$server, $protocol, $data] = HookManager::filter('traffic.before_process', [$server, $protocol, $data]);
-            (new TrafficFetchJob($server, $data, $protocol, $timestamp))->handle();
+            (new TrafficFetchJob($server, $data, $protocol, $timestamp, false))->handle();
             (new StatUserJob($server, $data, $protocol, 'd'))->handle();
             (new StatServerJob($server, $data, $protocol, 'd'))->handle();
-            return true;
+            $userIds = array_keys($data);
+            DB::table('v2_traffic_report_receipt')
+                ->where('server_id', $node->id)->where('report_id', $reportId)
+                ->update(['check_user_ids' => json_encode($userIds, JSON_THROW_ON_ERROR)]);
+            return [true, $userIds];
         }, 3);
+
+        // Notify only after committed usage is visible. A failed notification
+        // prevents the ACK; an identical retry republishes without charging again.
+        DB::afterCommit(function () use ($node, $data, $userIds) {
+            if ($userIds) {
+                Redis::sadd('traffic:pending_check', ...$userIds);
+            }
+            ServerService::recordTrafficReport($node, count($data));
+        });
+
+        return $processed;
     }
 }
