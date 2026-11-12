@@ -42,7 +42,10 @@ class XboardUpdate extends Command
     public function handle()
     {
         $this->info('正在导入数据库请稍等...');
-        Artisan::call("migrate", ['--force' => true]);
+        if (Artisan::call("migrate", ['--force' => true]) !== self::SUCCESS) {
+            $this->error(Artisan::output());
+            return self::FAILURE;
+        }
         $this->info(Artisan::output());
         $this->info('正在检查并安装默认插件...');
         PluginManager::installDefaultPlugins();
@@ -61,5 +64,6 @@ class XboardUpdate extends Command
             }
         }
         $this->info('更新完毕，队列服务已重启，你无需进行任何操作。');
+        return self::SUCCESS;
     }
 }

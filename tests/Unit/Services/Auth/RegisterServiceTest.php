@@ -95,7 +95,7 @@ class RegisterServiceTest extends TestCase
                     'email' => $email,
                     'password' => password_hash('password123', PASSWORD_DEFAULT),
                     'uuid' => Helper::guid(true),
-                    'token' => Helper::guid(true),
+                    'token' => Helper::guid(false),
                     'created_at' => time(),
                     'updated_at' => time(),
                 ]);
@@ -104,7 +104,7 @@ class RegisterServiceTest extends TestCase
                 $user->email = $data['email'];
                 $user->password = password_hash($data['password'], PASSWORD_DEFAULT);
                 $user->uuid = Helper::guid(true);
-                $user->token = Helper::guid(true);
+                $user->token = Helper::guid(false);
                 $user->created_at = time();
                 $user->updated_at = time();
 

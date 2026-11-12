@@ -1,0 +1,50 @@
+name: Application tests
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  phpunit:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [sqlite, mysql]
+    services:
+      mysql:
+        image: mysql:8.2
+        env:
+          MYSQL_ROOT_PASSWORD: test-password
+          MYSQL_DATABASE: xboard_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ptest-password"
+          --health-interval=10s --health-timeout=5s --health-retries=10
+    env:
+      DB_CONNECTION: ${{ matrix.database }}
+      DB_DATABASE: ${{ matrix.database == 'mysql' && 'xboard_test' || 'database/testing.sqlite' }}
+      DB_HOST: 127.0.0.1
+      DB_USERNAME: root
+      DB_PASSWORD: test-password
+      CACHE_DRIVER: array
+      QUEUE_CONNECTION: sync
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: bcmath, pcntl, pdo_sqlite, pdo_mysql, intl
+          coverage: none
+          tools: composer:v2
+      - run: composer install --no-interaction --no-progress --no-scripts
+      - run: touch database/testing.sqlite
+      - run: php artisan package:discover
+      - run: vendor/bin/phpunit
+      - run: python3 tests/container_startup.py
